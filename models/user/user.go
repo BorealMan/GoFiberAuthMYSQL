@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"golang.org/x/crypto/bcrypt"
 
 	"app/api/auth"
 	"app/database"
@@ -13,7 +14,7 @@ import (
 type User struct {
 	Id          uint64 `json:"id" gorm:"primaryKey;autoIncrement"`
 	Email       string `json:"email" gorm:"unique;not null" validate:"required,email"`
-	Password    string `json:"password" gorm:"not null" validate:"required,min=4,max=20"`
+	Password    string `json:"password" gorm:"not null" validate:"required,min=4,max=100"`
 	CreatedAt   uint64 `json:"createdat" gorm:"autoCreateTime"`
 	LastUpdated uint64 `json:"lastupdated" gorm:"autoUpdateTime"`
 	Role        string `json:"role" gorm:"required"`
@@ -41,7 +42,8 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 	// Check User Password
-	if user.Password != password {
+	pld := user.Email + password
+	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pld)) != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "invalid password",
 		})
@@ -74,6 +76,14 @@ func CreateUser(c *fiber.Ctx) error {
 	if err != nil {
 		return c.SendStatus(fiber.StatusBadRequest)
 	}
+	// Hash Password
+	pld := email + password
+	bytes, err := bcrypt.GenerateFromPassword([]byte(pld), 6)
+	if err != nil {
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+	hash := string(bytes)
+	user.Password = hash
 	// Saving User To DB
 	database.DB.Save(&user)
 	if user.Id == 0 {
@@ -115,6 +125,7 @@ func Update(c *fiber.Ctx) error {
 	err := validate.Struct(user)
 	// Check Form
 	if err != nil {
+		fmt.Println(err)
 		return c.SendStatus(fiber.StatusBadRequest)
 	}
 	// Try to save the new fields

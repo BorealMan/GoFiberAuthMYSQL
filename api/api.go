@@ -16,8 +16,6 @@ func SetRoutes(app *fiber.App) {
 	api := app.Group("/api")
 	userRoutes.SetUserRoutes(api)
 
-	api.Get("/test", testHandler)
-
 	api.Get("/", auth.ValidateJWT, testHandler)
 }
 
